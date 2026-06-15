@@ -288,6 +288,11 @@
         word-break: keep-all;
     }
 
+    [data-card-exporting='true'] .record-card-type * {
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+    }
+
     .soft-title-outline {
         -webkit-text-stroke: 0.32mm rgb(255 255 255 / 0.86);
         paint-order: stroke fill;

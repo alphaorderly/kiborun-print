@@ -899,6 +899,7 @@ const App = () => {
         try {
             await document.fonts.ready;
 
+            cardFrame.dataset.cardExporting = 'true';
             cardFrame.style.setProperty('--card-preview-scale', '1');
             cardFrame.style.filter = 'none';
             void cardFrame.offsetWidth;
@@ -926,6 +927,7 @@ const App = () => {
             }
 
             cardFrame.style.filter = previousFilter;
+            delete cardFrame.dataset.cardExporting;
             setIsSaving(false);
         }
     };
