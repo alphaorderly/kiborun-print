@@ -652,8 +652,9 @@ const AlignedText = ({
 );
 
 const NAME_BASE_FONT_SIZE_MM = 5.6;
-const NAME_MIN_FONT_SIZE_MM = 3.2;
+const NAME_MIN_FONT_SIZE_MM = 1.8;
 const NAME_FONT_SIZE_STEP_MM = 0.05;
+const NAME_FIT_PADDING_PX = 1;
 
 const AutoFitName = ({
     text,
@@ -677,7 +678,8 @@ const AutoFitName = ({
                 return;
             }
 
-            const maxWidth = container.clientWidth;
+            const maxWidth =
+                container.getBoundingClientRect().width - NAME_FIT_PADDING_PX;
 
             if (maxWidth <= 0) {
                 return;
@@ -686,8 +688,18 @@ const AutoFitName = ({
             let nextSize = NAME_BASE_FONT_SIZE_MM;
             textElement.style.fontSize = `${nextSize}mm`;
 
+            const textWidth = textElement.getBoundingClientRect().width;
+
+            if (textWidth > maxWidth) {
+                nextSize = Math.max(
+                    NAME_MIN_FONT_SIZE_MM,
+                    (NAME_BASE_FONT_SIZE_MM * maxWidth) / textWidth
+                );
+                textElement.style.fontSize = `${nextSize}mm`;
+            }
+
             while (
-                textElement.scrollWidth > maxWidth &&
+                textElement.getBoundingClientRect().width > maxWidth &&
                 nextSize > NAME_MIN_FONT_SIZE_MM
             ) {
                 nextSize = Math.max(
@@ -1009,7 +1021,6 @@ const App = () => {
                             <Label htmlFor="runner-name">이름</Label>
                             <Input
                                 id="runner-name"
-                                maxLength={12}
                                 value={record.runnerName}
                                 onChange={(event) =>
                                     updateRecord(
