@@ -1,0 +1,369 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+}
+
+:root {
+    --background: oklch(0.985 0.018 229.25);
+    --foreground: oklch(0.21 0.025 264);
+    --card: oklch(1 0 0 / 0.92);
+    --card-foreground: var(--foreground);
+    --popover: oklch(1 0 0);
+    --popover-foreground: var(--foreground);
+    --primary: oklch(0.65 0.17 237);
+    --primary-foreground: oklch(0.99 0.015 229.25);
+    --secondary: oklch(0.93 0.028 232);
+    --secondary-foreground: oklch(0.24 0.035 264);
+    --muted: oklch(0.94 0.022 232);
+    --muted-foreground: oklch(0.48 0.028 264);
+    --accent: oklch(0.91 0.052 230);
+    --accent-foreground: oklch(0.24 0.035 264);
+    --destructive: oklch(0.58 0.22 27);
+    --destructive-foreground: oklch(0.99 0 0);
+    --border: oklch(0.87 0.035 232);
+    --input: oklch(0.87 0.035 232);
+    --ring: oklch(0.65 0.17 237);
+    --radius: 0.5rem;
+}
+
+@font-face {
+    font-family: 'NanumSquareNeo';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NanumSquareNeo-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'NanumSquareNeo';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NanumSquareNeo-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'NanumSquareNeo';
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NanumSquareNeo-ExtraBold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'NanumSquareNeo';
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NanumSquareNeo-Heavy.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Pretendard-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Pretendard';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Pretendard-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Paperozi';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Paperlogy-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Paperozi';
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Paperlogy-Medium.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Paperozi';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Paperlogy-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Paperozi';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Paperlogy-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Paperozi';
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Paperlogy-ExtraBold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Paperozi';
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/Paperlogy-Black.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'GmarketSans';
+    font-weight: 400 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/GmarketSans-Medium.woff') format('woff');
+}
+
+@font-face {
+    font-family: 'GmarketSans';
+    font-weight: 700 900;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/GmarketSans-Bold.woff') format('woff');
+}
+
+@font-face {
+    font-family: 'SUIT';
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/SUIT-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'SUIT';
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/SUIT-Medium.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'SUIT';
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/SUIT-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'SUIT';
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/SUIT-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'SUIT';
+    font-weight: 800;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/SUIT-ExtraBold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'SUIT';
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/SUIT-Heavy.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'LINE Seed Sans KR';
+    font-weight: 400 600;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/LINESeedKR-Regular.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'LINE Seed Sans KR';
+    font-weight: 700 900;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/LINESeedKR-Bold.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'Noto Sans KR';
+    font-weight: 400 500;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NotoSansKR-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Noto Sans KR';
+    font-weight: 600 800;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NotoSansKR-Bold.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Noto Sans KR';
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+    src: url('./assets/fonts/NotoSansKR-Black.ttf') format('truetype');
+}
+
+@layer base {
+    * {
+        border-color: var(--border);
+    }
+
+    html {
+        font-family:
+            Pretendard,
+            -apple-system,
+            BlinkMacSystemFont,
+            'Segoe UI',
+            sans-serif;
+        background: var(--background);
+    }
+
+    body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+    }
+
+    button,
+    input {
+        font: inherit;
+    }
+}
+
+@layer utilities {
+    .record-card-type {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: 'kern';
+        font-kerning: normal;
+        font-optical-sizing: auto;
+        text-rendering: geometricPrecision;
+        word-break: keep-all;
+    }
+
+    .soft-title-outline {
+        -webkit-text-stroke: 0.32mm rgb(255 255 255 / 0.86);
+        paint-order: stroke fill;
+        text-shadow:
+            0.34mm 0 0 rgb(255 255 255 / 0.92),
+            -0.34mm 0 0 rgb(255 255 255 / 0.92),
+            0 0.34mm 0 rgb(255 255 255 / 0.92),
+            0 -0.34mm 0 rgb(255 255 255 / 0.92),
+            0.24mm 0.24mm 0 rgb(255 255 255 / 0.9),
+            -0.24mm 0.24mm 0 rgb(255 255 255 / 0.9),
+            0.24mm -0.24mm 0 rgb(255 255 255 / 0.9),
+            -0.24mm -0.24mm 0 rgb(255 255 255 / 0.9),
+            0 0.55mm 0.72mm rgb(92 58 48 / 0.23);
+    }
+
+    .soft-label-type {
+        text-shadow:
+            0 0.11mm 0 rgb(255 255 255 / 0.72),
+            0 0 0.18mm rgb(255 255 255 / 0.56),
+            0 0.26mm 0.36mm rgb(111 74 38 / 0.12);
+    }
+
+    .soft-ink {
+        -webkit-text-stroke: 0.055mm rgb(255 255 255 / 0.38);
+        paint-order: stroke fill;
+        text-shadow:
+            0 0.14mm 0 rgb(255 255 255 / 0.76),
+            0 0 0.2mm rgb(255 255 255 / 0.5),
+            0 0.34mm 0.48mm rgb(76 45 46 / 0.14);
+    }
+
+    .soft-ink-strong {
+        -webkit-text-stroke: 0.075mm rgb(255 255 255 / 0.42);
+        paint-order: stroke fill;
+        text-shadow:
+            0.12mm 0 0 rgb(255 255 255 / 0.42),
+            -0.12mm 0 0 rgb(255 255 255 / 0.42),
+            0 0.12mm 0 rgb(255 255 255 / 0.48),
+            0 0 0.24mm rgb(255 255 255 / 0.38),
+            0 0.42mm 0.58mm rgb(76 45 46 / 0.13);
+    }
+
+    .soft-number-type {
+        -webkit-text-stroke: 0.09mm rgb(255 255 255 / 0.5);
+        paint-order: stroke fill;
+        text-shadow:
+            0.16mm 0 0 rgb(255 255 255 / 0.52),
+            -0.16mm 0 0 rgb(255 255 255 / 0.52),
+            0 0.16mm 0 rgb(255 255 255 / 0.66),
+            0 0 0.24mm rgb(255 255 255 / 0.5),
+            0 0.62mm 0.86mm rgb(105 73 48 / 0.2);
+    }
+
+    .soft-arcade-outline {
+        -webkit-text-stroke: 0.1mm rgb(255 241 174 / 0.72);
+        paint-order: stroke fill;
+        text-shadow:
+            0.18mm 0 0 rgb(255 241 174 / 0.78),
+            -0.18mm 0 0 rgb(255 241 174 / 0.78),
+            0 0.18mm 0 rgb(255 241 174 / 0.78),
+            0 -0.18mm 0 rgb(255 241 174 / 0.78),
+            0 0.36mm 0.52mm rgb(55 43 56 / 0.2);
+    }
+}
+
+@page {
+    size: 54mm 85.6mm;
+    margin: 0;
+}
+
+@media print {
+    html,
+    body,
+    #root {
+        width: 54mm;
+        height: 85.6mm;
+        background: #ffffff;
+    }
+}
