@@ -1,5 +1,5 @@
 import { Download, Printer } from 'lucide-react';
-import type { CSSProperties, ReactNode, RefObject } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
 
@@ -94,6 +94,62 @@ const headerAlignmentOptions = [
 
 type HeaderAlignmentId = (typeof headerAlignmentOptions)[number]['id'];
 
+const baseCardSizeMm = {
+    width: 54,
+    height: 85.6,
+} as const;
+
+const outputCardSizeOptions = [
+    {
+        id: 'record',
+        label: '기록증',
+        widthMm: 54,
+        heightMm: 85.6,
+        description: '기본',
+    },
+    {
+        id: 'credit-card',
+        label: '신용카드',
+        widthMm: 53.98,
+        heightMm: 85.6,
+        description: '표준 카드',
+    },
+    {
+        id: 'business-card',
+        label: '명함',
+        widthMm: 55,
+        heightMm: 90,
+        description: '국내 명함',
+    },
+    {
+        id: 'bridge',
+        label: '브릿지',
+        widthMm: 57,
+        heightMm: 89,
+        description: '슬림 카드',
+    },
+    {
+        id: 'poker',
+        label: '포커',
+        widthMm: 63,
+        heightMm: 88,
+        description: '보드게임 카드',
+    },
+    {
+        id: 'tarot',
+        label: '타로',
+        widthMm: 70,
+        heightMm: 120,
+        description: '대형 카드',
+    },
+] as const;
+
+type OutputCardSizeId = (typeof outputCardSizeOptions)[number]['id'];
+
+const outputCardSizeById = Object.fromEntries(
+    outputCardSizeOptions.map((option) => [option.id, option])
+) as Record<OutputCardSizeId, (typeof outputCardSizeOptions)[number]>;
+
 type TextSlotId = 'label' | 'bib' | 'name' | 'course' | 'time';
 
 type TextVerticalOffsets = Record<TextSlotId, number>;
@@ -102,10 +158,19 @@ type TextOffsetStyle = CSSProperties & {
     '--text-y-offset': string;
 };
 
+type CardSizeStyle = CSSProperties & {
+    '--card-output-width': string;
+    '--card-output-height': string;
+    '--card-output-offset-x': string;
+    '--card-output-offset-y': string;
+    '--card-output-scale': string;
+};
+
 type RecordInput = {
     bibNumber: string;
     runnerName: string;
     finishTime: string;
+    outputSizeId: OutputCardSizeId;
     fontFamilyId: FontFamilyId;
     textStyleId: TextStyleId;
     logoAlignmentId: HeaderAlignmentId;
@@ -120,6 +185,7 @@ const initialRecord: RecordInput = {
     bibNumber: '2313',
     runnerName: '선생님',
     finishTime: '12:13',
+    outputSizeId: 'record',
     fontFamilyId: 'nanum-square-neo',
     textStyleId: 'sport',
     logoAlignmentId: 'left',
@@ -152,6 +218,10 @@ const formatFinishTime = (value: string) => {
 
 const sanitizeFileName = (value: string) =>
     value.trim().replace(/[<>:"/\\|?*]/g, '_') || 'runner';
+
+const formatMm = (value: number) => `${Number(value.toFixed(2))}mm`;
+
+const mmToCssPx = (value: number) => (value / 25.4) * 96;
 
 const zeroTextVerticalOffsets: TextVerticalOffsets = {
     label: 0,
@@ -217,8 +287,8 @@ const getTextVerticalOffset = (
 };
 
 const recordCardStyles = {
-    frame: 'relative h-[85.6mm] w-[54mm] [--card-scale:1] [filter:drop-shadow(0_24px_48px_rgb(15_23_42_/_22%))] min-[680px]:h-[124.12mm] min-[680px]:w-[78.3mm] min-[680px]:[--card-scale:1.45] min-[1050px]:h-[155.792mm] min-[1050px]:w-[98.28mm] min-[1050px]:[--card-scale:1.82] max-[360px]:h-[70.192mm] max-[360px]:w-[44.28mm] max-[360px]:[--card-scale:0.82] print:block print:h-[85.6mm] print:w-[54mm] print:filter-none',
-    card: 'record-card-type relative isolate h-[85.6mm] w-[54mm] origin-top-left overflow-hidden rounded-[3mm] bg-sky-200 text-[#45373a] [print-color-adjust:exact] [transform:scale(var(--card-scale))] [-webkit-print-color-adjust:exact] print:h-[85.6mm] print:w-[54mm] print:transform-none print:rounded-none',
+    frame: 'relative h-[calc(var(--card-output-height)*var(--card-preview-scale))] w-[calc(var(--card-output-width)*var(--card-preview-scale))] overflow-hidden [--card-preview-scale:1] [filter:drop-shadow(0_24px_48px_rgb(15_23_42_/_22%))] max-[360px]:[--card-preview-scale:0.82] min-[680px]:[--card-preview-scale:1.45] min-[1050px]:[--card-preview-scale:1.82] print:block print:h-[var(--card-output-height)] print:w-[var(--card-output-width)] print:[--card-preview-scale:1] print:filter-none',
+    card: 'record-card-type absolute top-[calc(var(--card-output-offset-y)*var(--card-preview-scale))] left-[calc(var(--card-output-offset-x)*var(--card-preview-scale))] isolate h-[85.6mm] w-[54mm] origin-top-left overflow-hidden rounded-[3mm] bg-sky-200 text-[#45373a] [print-color-adjust:exact] [transform:scale(calc(var(--card-preview-scale)*var(--card-output-scale)))] [-webkit-print-color-adjust:exact] print:rounded-none',
     bg: 'absolute inset-0 z-[-3] h-full w-full object-cover [object-position:49%_top]',
     glow: 'absolute inset-0 z-[-2] bg-[linear-gradient(180deg,rgb(99_207_255_/_30%)_0%,rgb(255_255_255_/_8%)_42%,rgb(255_236_159_/_20%)_100%),radial-gradient(circle_at_50%_11%,rgb(255_255_255_/_80%),transparent_16%),radial-gradient(circle_at_78%_35%,rgb(255_255_255_/_45%),transparent_24%)]',
     border: 'pointer-events-none absolute inset-[1.2mm] z-8 rounded-[2.55mm] border-[0.45mm] border-white/70 shadow-[inset_0_0_0_0.18mm_rgb(61_91_106_/_18%),inset_0_-8mm_16mm_rgb(22_92_130_/_13%)]',
@@ -432,6 +502,54 @@ const HeaderAlignmentPicker = ({
     </div>
 );
 
+const CardSizePicker = ({
+    selectedId,
+    onSelect,
+}: {
+    selectedId: OutputCardSizeId;
+    onSelect: (id: OutputCardSizeId) => void;
+}) => (
+    <div className="grid gap-2">
+        <Label>출력 사이즈</Label>
+        <div
+            className="grid grid-cols-2 gap-2"
+            role="radiogroup"
+            aria-label="출력 사이즈"
+        >
+            {outputCardSizeOptions.map((option) => {
+                const isSelected = option.id === selectedId;
+
+                return (
+                    <Button
+                        key={option.id}
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                            'h-auto flex-col items-start gap-1 px-3 py-2 text-left',
+                            isSelected &&
+                                'border-primary bg-primary/10 text-primary shadow-sm'
+                        )}
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => onSelect(option.id)}
+                    >
+                        <span className="text-sm leading-tight font-bold">
+                            {option.label}
+                        </span>
+                        <span className="text-muted-foreground grid gap-0.5 text-xs leading-tight">
+                            <span>
+                                {formatMm(option.widthMm)} x{' '}
+                                {formatMm(option.heightMm)}
+                            </span>
+                            <span>{option.description}</span>
+                        </span>
+                    </Button>
+                );
+            })}
+        </div>
+    </div>
+);
+
 const CharacterPicker = ({
     label,
     selectedId,
@@ -620,13 +738,7 @@ const AutoFitName = ({
     );
 };
 
-const RecordCard = ({
-    record,
-    cardRef,
-}: {
-    record: RecordInput;
-    cardRef: RefObject<HTMLDivElement | null>;
-}) => {
+const RecordCard = ({ record }: { record: RecordInput }) => {
     const leftRunner = runnerCharacterById[record.leftRunnerId];
     const rightRunner = runnerCharacterById[record.rightRunnerId];
     const fontOption = fontOptionById[record.fontFamilyId];
@@ -636,7 +748,6 @@ const RecordCard = ({
 
     return (
         <div
-            ref={cardRef}
             className={recordCardStyles.card}
             style={{ fontFamily: fontOption.fontFamily }}
             role="img"
@@ -740,7 +851,24 @@ const RecordCard = ({
 const App = () => {
     const [record, setRecord] = useState<RecordInput>(initialRecord);
     const [isSaving, setIsSaving] = useState(false);
-    const cardRef = useRef<HTMLDivElement>(null);
+    const cardFrameRef = useRef<HTMLDivElement>(null);
+    const selectedCardSize = outputCardSizeById[record.outputSizeId];
+    const outputCardScale = Math.min(
+        selectedCardSize.widthMm / baseCardSizeMm.width,
+        selectedCardSize.heightMm / baseCardSizeMm.height
+    );
+    const outputOffsetX =
+        (selectedCardSize.widthMm - baseCardSizeMm.width * outputCardScale) / 2;
+    const outputOffsetY =
+        (selectedCardSize.heightMm - baseCardSizeMm.height * outputCardScale) /
+        2;
+    const cardSizeStyle: CardSizeStyle = {
+        '--card-output-width': formatMm(selectedCardSize.widthMm),
+        '--card-output-height': formatMm(selectedCardSize.heightMm),
+        '--card-output-offset-x': formatMm(outputOffsetX),
+        '--card-output-offset-y': formatMm(outputOffsetY),
+        '--card-output-scale': String(outputCardScale),
+    };
 
     const bibError = record.bibNumber.length !== 4;
     const nameError = record.runnerName.trim().length === 0;
@@ -755,37 +883,63 @@ const App = () => {
     };
 
     const handleDownload = async () => {
-        if (!cardRef.current || hasError) {
+        const cardFrame = cardFrameRef.current;
+
+        if (!cardFrame || hasError) {
             return;
         }
 
         setIsSaving(true);
 
+        const previousPreviewScale = cardFrame.style.getPropertyValue(
+            '--card-preview-scale'
+        );
+        const previousFilter = cardFrame.style.filter;
+
         try {
             await document.fonts.ready;
 
-            const dataUrl = await toPng(cardRef.current, {
+            cardFrame.style.setProperty('--card-preview-scale', '1');
+            cardFrame.style.filter = 'none';
+            void cardFrame.offsetWidth;
+
+            const dataUrl = await toPng(cardFrame, {
                 backgroundColor: '#ffffff',
                 cacheBust: true,
+                height: mmToCssPx(selectedCardSize.heightMm),
                 pixelRatio: 3.125,
-                style: {
-                    transform: 'none',
-                    transformOrigin: 'top left',
-                },
+                width: mmToCssPx(selectedCardSize.widthMm),
             });
 
             const link = document.createElement('a');
-            link.download = `kivotos-run-${record.bibNumber}-${sanitizeFileName(record.runnerName)}.png`;
+            link.download = `kivotos-run-${record.bibNumber}-${sanitizeFileName(record.runnerName)}-${selectedCardSize.widthMm}x${selectedCardSize.heightMm}mm.png`;
             link.href = dataUrl;
             link.click();
         } finally {
+            if (previousPreviewScale) {
+                cardFrame.style.setProperty(
+                    '--card-preview-scale',
+                    previousPreviewScale
+                );
+            } else {
+                cardFrame.style.removeProperty('--card-preview-scale');
+            }
+
+            cardFrame.style.filter = previousFilter;
             setIsSaving(false);
         }
     };
 
     return (
-        <main className="bg-background text-foreground min-h-screen overflow-hidden">
-            <div className="mx-auto grid min-h-screen w-[min(1120px,100%)] grid-cols-[minmax(280px,360px)_minmax(0,1fr)] items-center gap-8 p-6 max-[900px]:grid-cols-1 max-[900px]:content-start md:p-10 print:block print:min-h-[85.6mm] print:w-[54mm] print:p-0">
+        <main
+            className="bg-background text-foreground min-h-screen overflow-hidden print:min-h-[var(--card-output-height)] print:w-[var(--card-output-width)]"
+            style={cardSizeStyle}
+        >
+            <style>
+                {`@page { size: ${formatMm(selectedCardSize.widthMm)} ${formatMm(selectedCardSize.heightMm)}; margin: 0; }
+@media print { html, body, #root { width: ${formatMm(selectedCardSize.widthMm)}; height: ${formatMm(selectedCardSize.heightMm)}; } }`}
+            </style>
+            <div className="mx-auto grid min-h-screen w-[min(1120px,100%)] grid-cols-[minmax(280px,360px)_minmax(0,1fr)] items-center gap-8 p-6 max-[900px]:grid-cols-1 max-[900px]:content-start md:p-10 print:block print:min-h-[var(--card-output-height)] print:w-[var(--card-output-width)] print:p-0">
                 <Card className="max-[900px]:order-2 print:hidden">
                     <CardHeader>
                         <CardTitle>기록증 생성</CardTitle>
@@ -802,6 +956,13 @@ const App = () => {
                             selectedId={record.textStyleId}
                             onSelect={(textStyleId) =>
                                 updateRecord('textStyleId', textStyleId)
+                            }
+                        />
+
+                        <CardSizePicker
+                            selectedId={record.outputSizeId}
+                            onSelect={(outputSizeId) =>
+                                updateRecord('outputSizeId', outputSizeId)
                             }
                         />
 
@@ -947,8 +1108,8 @@ const App = () => {
                     className="grid min-w-0 justify-items-center max-[900px]:order-1 print:block"
                     aria-label="기록증 미리보기"
                 >
-                    <div className={recordCardStyles.frame}>
-                        <RecordCard record={record} cardRef={cardRef} />
+                    <div ref={cardFrameRef} className={recordCardStyles.frame}>
+                        <RecordCard record={record} />
                     </div>
                 </section>
             </div>
