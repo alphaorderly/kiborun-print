@@ -15,6 +15,13 @@ import { Button } from '@components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@components/ui/card';
 import { Input } from '@components/ui/input';
 import { Label } from '@components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@components/ui/select';
 import { Slider } from '@components/ui/slider';
 import { cn } from '@utils/cn/cn';
 
@@ -94,6 +101,10 @@ const headerAlignmentOptions = [
 
 type HeaderAlignmentId = (typeof headerAlignmentOptions)[number]['id'];
 
+const bibGroupOptions = ['A', 'B', 'C', 'D', 'E'] as const;
+
+type BibGroupId = (typeof bibGroupOptions)[number];
+
 const baseCardSizeMm = {
     width: 54,
     height: 85.6,
@@ -167,6 +178,7 @@ type CardSizeStyle = CSSProperties & {
 };
 
 type RecordInput = {
+    bibGroup: BibGroupId;
     bibNumber: string;
     runnerName: string;
     finishTime: string;
@@ -182,6 +194,7 @@ type RecordInput = {
 };
 
 const initialRecord: RecordInput = {
+    bibGroup: 'A',
     bibNumber: '2313',
     runnerName: '선생님',
     finishTime: '12:13',
@@ -801,13 +814,16 @@ const RecordCard = ({ record }: { record: RecordInput }) => {
                     </AlignedText>
                 </div>
                 <div className={cn(recordCardStyles.bib, textStyle.bib)}>
-                    <AlignedText
-                        className="typo-badge typo-badge-subtle"
-                        fontFamilyId={record.fontFamilyId}
-                        slot="bib"
-                    >
-                        {record.bibNumber || '0000'}
-                    </AlignedText>
+                    <div className="flex items-center justify-center gap-[1.2mm]">
+                        <AlignedText
+                            className="typo-badge typo-badge-subtle"
+                            fontFamilyId={record.fontFamilyId}
+                            slot="bib"
+                        >
+                            {record.bibGroup}
+                            {record.bibNumber || '0000'}
+                        </AlignedText>
+                    </div>
                 </div>
                 <div className={cn(recordCardStyles.name, textStyle.name)}>
                     <AutoFitName
@@ -1001,19 +1017,51 @@ const App = () => {
 
                         <div className="grid gap-2">
                             <Label htmlFor="bib-number">배번</Label>
-                            <Input
-                                id="bib-number"
-                                inputMode="numeric"
-                                maxLength={4}
-                                value={record.bibNumber}
-                                onChange={(event) =>
-                                    updateRecord(
-                                        'bibNumber',
-                                        sanitizeBibNumber(event.target.value)
-                                    )
-                                }
-                                placeholder="2313"
-                            />
+                            <div className="flex gap-2">
+                                <Select
+                                    value={record.bibGroup}
+                                    onValueChange={(bibGroup) =>
+                                        updateRecord(
+                                            'bibGroup',
+                                            bibGroup as BibGroupId
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="bib-group"
+                                        className="w-[5.5rem] shrink-0"
+                                        aria-label="조 선택"
+                                    >
+                                        <SelectValue placeholder="조" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {bibGroupOptions.map((group) => (
+                                            <SelectItem
+                                                key={group}
+                                                value={group}
+                                            >
+                                                {group}조
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Input
+                                    id="bib-number"
+                                    className="min-w-0 flex-1"
+                                    inputMode="numeric"
+                                    maxLength={4}
+                                    value={record.bibNumber}
+                                    onChange={(event) =>
+                                        updateRecord(
+                                            'bibNumber',
+                                            sanitizeBibNumber(
+                                                event.target.value
+                                            )
+                                        )
+                                    }
+                                    placeholder="2313"
+                                />
+                            </div>
                             {bibError && <FieldError>숫자 4자리</FieldError>}
                         </div>
 
