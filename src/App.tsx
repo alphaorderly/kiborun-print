@@ -816,7 +816,13 @@ const RecordCard = ({ record }: { record: RecordInput }) => {
                         textStyleId={record.textStyleId}
                     />
                 </div>
-                <div className={cn(recordCardStyles.course, textStyle.course)}>
+                <div
+                    className={cn(
+                        recordCardStyles.course,
+                        textStyle.course,
+                        'pt-[0.1mm]'
+                    )}
+                >
                     <AlignedText
                         fontFamilyId={record.fontFamilyId}
                         slot="course"
