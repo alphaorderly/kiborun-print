@@ -227,52 +227,52 @@ const zeroTextVerticalOffsets: TextVerticalOffsets = {
     label: 0,
     bib: 0,
     name: 0,
-    course: 0,
+    course: 0.4,
     time: 0,
 };
 
 const verticalOffsetByFont: Record<FontFamilyId, TextVerticalOffsets> = {
     'nanum-square-neo': zeroTextVerticalOffsets,
     pretendard: {
-        label: 0.04,
+        label: -0.2,
         bib: 0.05,
         name: 0.08,
-        course: 0.05,
+        course: 0.5,
         time: 0.08,
     },
     paperlogy: {
         label: -0.02,
         bib: -0.04,
         name: -0.05,
-        course: -0.03,
+        course: 0.3,
         time: -0.06,
     },
     'gmarket-sans': {
         label: 0.12,
         bib: 0.7,
         name: 0.18,
-        course: 0.12,
+        course: 0.6,
         time: 0.8,
     },
     suit: {
         label: 0.02,
         bib: 0.06,
         name: 0.04,
-        course: 0.03,
+        course: 0.2,
         time: -0.0,
     },
     'line-seed': {
-        label: -0.04,
+        label: 0.1,
         bib: 0.7,
         name: 0.4,
-        course: -0.05,
+        course: 0.7,
         time: 0.8,
     },
     'noto-sans-kr': {
         label: 0,
         bib: -0.1,
         name: -0.6,
-        course: 0.08,
+        course: 0,
         time: -0.9,
     },
 };
@@ -816,13 +816,7 @@ const RecordCard = ({ record }: { record: RecordInput }) => {
                         textStyleId={record.textStyleId}
                     />
                 </div>
-                <div
-                    className={cn(
-                        recordCardStyles.course,
-                        textStyle.course,
-                        'pt-[0.1mm]'
-                    )}
-                >
+                <div className={cn(recordCardStyles.course, textStyle.course)}>
                     <AlignedText
                         fontFamilyId={record.fontFamilyId}
                         slot="course"
