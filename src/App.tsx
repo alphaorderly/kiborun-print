@@ -1,7 +1,6 @@
 import { Download, Printer } from 'lucide-react';
-import type { CSSProperties, ReactNode } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
-import { toPng } from 'html-to-image';
+import type { CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import bgImage from '@assets/bg.jpg';
 import logoImage from '@assets/logo.png';
@@ -35,10 +34,6 @@ const runnerCharacters = [
 ] as const;
 
 type RunnerCharacterId = (typeof runnerCharacters)[number]['id'];
-
-const runnerCharacterById = Object.fromEntries(
-    runnerCharacters.map((character) => [character.id, character])
-) as Record<RunnerCharacterId, (typeof runnerCharacters)[number]>;
 
 const fontOptions = [
     {
@@ -165,16 +160,28 @@ type TextSlotId = 'label' | 'bib' | 'name' | 'course' | 'time';
 
 type TextVerticalOffsets = Record<TextSlotId, number>;
 
-type TextOffsetStyle = CSSProperties & {
-    '--text-y-offset': string;
-};
-
 type CardSizeStyle = CSSProperties & {
     '--card-output-width': string;
     '--card-output-height': string;
     '--card-output-offset-x': string;
     '--card-output-offset-y': string;
     '--card-output-scale': string;
+};
+
+type RecordCardAssets = {
+    bg: HTMLImageElement;
+    logo: HTMLImageElement;
+    runners: Record<RunnerCharacterId, HTMLImageElement>;
+};
+
+type DrawRecordCardOptions = {
+    assets: RecordCardAssets;
+    heightMm: number;
+    offsetX: number;
+    offsetY: number;
+    outputScale: number;
+    pixelRatio: number;
+    widthMm: number;
 };
 
 type RecordInput = {
@@ -236,11 +243,17 @@ const formatMm = (value: number) => `${Number(value.toFixed(2))}mm`;
 
 const mmToCssPx = (value: number) => (value / 25.4) * 96;
 
+const CANVAS_PX_PER_MM = 96 / 25.4;
+
+const PREVIEW_PIXEL_RATIO_CAP = 2;
+
+const EXPORT_PIXEL_RATIO = 3.125;
+
 const zeroTextVerticalOffsets: TextVerticalOffsets = {
     label: 0,
     bib: 0,
     name: 0,
-    course: 0.4,
+    course: 0,
     time: 0,
 };
 
@@ -257,15 +270,15 @@ const verticalOffsetByFont: Record<FontFamilyId, TextVerticalOffsets> = {
         label: -0.02,
         bib: -0.04,
         name: -0.05,
-        course: 0.3,
-        time: -0.06,
+        course: 0,
+        time: 0.3,
     },
     'gmarket-sans': {
-        label: 0.12,
-        bib: 0.7,
+        label: -0.1,
+        bib: 0,
         name: 0.18,
-        course: 0.6,
-        time: 0.8,
+        course: 0,
+        time: 0.2,
     },
     suit: {
         label: 0.02,
@@ -275,115 +288,762 @@ const verticalOffsetByFont: Record<FontFamilyId, TextVerticalOffsets> = {
         time: -0.0,
     },
     'line-seed': {
-        label: 0.1,
-        bib: 0.7,
-        name: 0.4,
-        course: 0.7,
-        time: 0.8,
+        label: -0.1,
+        bib: 0,
+        name: 0,
+        course: 0,
+        time: 0,
     },
     'noto-sans-kr': {
         label: 0,
-        bib: -0.1,
-        name: -0.6,
+        bib: 0,
+        name: 0,
         course: 0,
-        time: -0.9,
+        time: 0,
     },
 };
 
-const getTextVerticalOffset = (
-    fontFamilyId: FontFamilyId,
-    slot: TextSlotId
-) => {
-    const offset = verticalOffsetByFont[fontFamilyId][slot];
+const textVerticalOffsetSignature = JSON.stringify(verticalOffsetByFont);
 
-    return `${Number(offset.toFixed(3))}mm`;
-};
+const getTextVerticalOffset = (fontFamilyId: FontFamilyId, slot: TextSlotId) =>
+    verticalOffsetByFont[fontFamilyId][slot];
 
 const recordCardStyles = {
-    frame: 'relative h-[calc(var(--card-output-height)*var(--card-preview-scale))] w-[calc(var(--card-output-width)*var(--card-preview-scale))] overflow-hidden [--card-preview-scale:1] [filter:drop-shadow(0_24px_48px_rgb(15_23_42_/_22%))] max-[360px]:[--card-preview-scale:0.82] min-[680px]:[--card-preview-scale:1.45] min-[1050px]:[--card-preview-scale:1.82] print:block print:h-[var(--card-output-height)] print:w-[var(--card-output-width)] print:[--card-preview-scale:1] print:filter-none',
-    card: 'record-card-type absolute top-[calc(var(--card-output-offset-y)*var(--card-preview-scale))] left-[calc(var(--card-output-offset-x)*var(--card-preview-scale))] isolate h-[85.6mm] w-[54mm] origin-top-left overflow-hidden rounded-[3mm] bg-sky-200 text-[#45373a] [print-color-adjust:exact] [transform:scale(calc(var(--card-preview-scale)*var(--card-output-scale)))] [-webkit-print-color-adjust:exact] print:rounded-none',
-    bg: 'absolute inset-0 z-[-3] h-full w-full object-cover [object-position:49%_top]',
-    glow: 'absolute inset-0 z-[-2] bg-[linear-gradient(180deg,rgb(99_207_255_/_30%)_0%,rgb(255_255_255_/_8%)_42%,rgb(255_236_159_/_20%)_100%),radial-gradient(circle_at_50%_11%,rgb(255_255_255_/_80%),transparent_16%),radial-gradient(circle_at_78%_35%,rgb(255_255_255_/_45%),transparent_24%)]',
-    border: 'pointer-events-none absolute inset-[1.2mm] z-8 rounded-[2.55mm] border-[0.45mm] border-white/70 shadow-[inset_0_0_0_0.18mm_rgb(61_91_106_/_18%),inset_0_-8mm_16mm_rgb(22_92_130_/_13%)]',
-    header: 'relative z-2 grid gap-[2.2mm] px-[5.7mm] pt-[7mm]',
-    logo: 'h-auto w-[36mm]',
-    title: 'soft-title-outline m-0 text-[6.1mm] leading-[0.95] font-black tracking-[0.01em] text-[#3c3838]',
-    panel: 'absolute top-[31.4mm] left-[5.2mm] z-4 w-[43.6mm] overflow-hidden rounded-[2.2mm] border-[0.35mm] border-[rgb(255_218_95_/_95%)] bg-white/92 text-center shadow-[0_1.7mm_4mm_rgb(37_89_116_/_18%),inset_0_0_0_0.2mm_rgb(255_255_255_/_76%)] backdrop-blur-[1.5mm]',
-    label: 'soft-label-type flex h-[4.6mm] items-center justify-center bg-[linear-gradient(180deg,#fff08d,#ffd85a)] text-[2.45mm] leading-none font-bold tracking-[0.08em] text-[#4d3a3e]',
-    bib: 'soft-ink flex h-[6.6mm] items-center justify-center text-[4.35mm] leading-none font-bold tracking-[0.1em] text-[#4a373a]',
-    name: 'soft-ink-strong flex h-[12.7mm] min-w-0 items-center justify-center border-t-[0.25mm] border-t-[rgb(255_218_95_/_72%)] px-[1.5mm] leading-none font-extrabold tracking-[0.02em] text-[#4b3a3d]',
-    course: 'soft-label-type flex h-[5mm] items-center justify-center bg-[linear-gradient(180deg,#fff08d,#ffd85a)] text-[3.15mm] leading-none font-bold tracking-[0.04em] text-[#4d3a3e]',
-    time: 'soft-number-type flex h-[13.5mm] items-center justify-center whitespace-nowrap text-[8.9mm] leading-none font-extrabold tracking-[-0.02em] text-[#45373a] [font-variant-numeric:tabular-nums]',
-    runner: 'pointer-events-none absolute z-5 h-[18.5mm] w-auto object-contain [filter:drop-shadow(0_0.6mm_0.5mm_rgb(60_45_48_/_20%))]',
-    runnerLeft: 'bottom-[3mm]',
-    runnerRight: 'bottom-[3mm] scale-x-[-1]',
-    track: 'absolute right-[2.8mm] bottom-[2.3mm] left-[2.8mm] z-3 h-[8.6mm] rounded-t-full bg-[linear-gradient(105deg,transparent_0_17%,rgb(255_219_108_/_78%)_17%_18%,transparent_18%_42%,rgb(255_219_108_/_68%)_42%_43%,transparent_43%),linear-gradient(180deg,rgb(129_186_207_/_66%),rgb(82_150_181_/_48%))] opacity-[0.68]',
+    frame: 'relative h-[calc(var(--card-output-height)*var(--card-preview-scale))] w-[calc(var(--card-output-width)*var(--card-preview-scale))] overflow-hidden [--card-preview-scale:1] [filter:drop-shadow(0_24px_48px_rgb(15_23_42_/_22%))] [print-color-adjust:exact] max-[360px]:[--card-preview-scale:0.82] min-[680px]:[--card-preview-scale:1.45] min-[1050px]:[--card-preview-scale:1.82] [-webkit-print-color-adjust:exact] print:block print:h-[var(--card-output-height)] print:w-[var(--card-output-width)] print:[--card-preview-scale:1] print:filter-none',
+    canvas: 'block h-full w-full',
 } as const;
 
-const textStyleClassMap: Record<
-    TextStyleId,
-    {
-        panel: string;
-        label: string;
-        bib: string;
-        name: string;
-        course: string;
-        time: string;
-    }
-> = {
-    balanced: {
-        panel: '',
-        label: '',
-        bib: '',
-        name: '',
-        course: '',
-        time: '',
-    },
-    sport: {
-        panel: '',
-        label: 'text-[#51363a] tracking-[0.1em]',
-        bib: 'font-extrabold tracking-[0.13em]',
-        name: 'font-black tracking-[0.01em]',
-        course: 'font-extrabold text-[#51363a]',
-        time: 'font-black tracking-[-0.04em] text-[#3f3236]',
-    },
-    round: {
-        panel: '',
-        label: 'text-[#5b4a52] tracking-[0.04em]',
-        bib: 'text-[#5a4a51] tracking-[0.08em]',
-        name: 'font-bold tracking-[0.01em] text-[#59464d]',
-        course: 'text-[#5b4a52]',
-        time: 'font-bold tracking-[-0.01em] text-[#554249]',
-    },
-    arcade: {
-        panel: '',
-        label: 'text-[#322b3a] tracking-[0.13em]',
-        bib: 'font-black tracking-[0.16em] text-[#352b38]',
-        name: 'soft-arcade-outline font-black tracking-[0.03em] text-[#342b38]',
-        course: 'text-[#322b3a] tracking-[0.08em]',
-        time: 'soft-arcade-outline font-black tracking-[-0.03em] text-[#302a3a]',
-    },
+type CanvasTextOptions = {
+    align?: CanvasTextAlign;
+    fill: string;
+    fontFamily: string;
+    fontSizeMm: number;
+    fontWeight: number;
+    letterSpacingMm?: number;
+    maxWidthMm?: number;
+    shadow?: {
+        blur: number;
+        color: string;
+        offsetX: number;
+        offsetY: number;
+    };
+    strokeColor?: string;
+    strokeWidthMm?: number;
+    text: string;
+    x: number;
+    y: number;
 };
 
-const headerAlignmentClassMap: Record<
-    HeaderAlignmentId,
-    {
-        item: string;
-        title: string;
+let recordCardAssetsPromise: Promise<RecordCardAssets> | null = null;
+
+const loadImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.decoding = 'async';
+        image.onload = () => {
+            if (image.decode) {
+                void image.decode().finally(() => resolve(image));
+                return;
+            }
+
+            resolve(image);
+        };
+        image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+        image.src = src;
+    });
+
+const loadRecordCardAssets = () => {
+    recordCardAssetsPromise ??= Promise.all([
+        loadImage(bgImage),
+        loadImage(logoImage),
+        ...runnerCharacters.map((character) => loadImage(character.image)),
+    ]).then(([bg, logo, ...runnerImages]) => {
+        const runners = Object.fromEntries(
+            runnerCharacters.map((character, index) => [
+                character.id,
+                runnerImages[index] as HTMLImageElement,
+            ])
+        ) as Record<RunnerCharacterId, HTMLImageElement>;
+
+        return { bg, logo, runners };
+    });
+
+    return recordCardAssetsPromise;
+};
+
+const waitForFontFamily = async (fontFamily: string) => {
+    if (!('fonts' in document)) {
+        return;
     }
-> = {
-    left: {
-        item: 'justify-self-start',
-        title: 'text-left',
-    },
-    center: {
-        item: 'justify-self-center',
-        title: 'text-center',
-    },
-    right: {
-        item: 'justify-self-end',
-        title: 'text-right',
-    },
+
+    await Promise.all(
+        [400, 700, 800, 900].map((weight) =>
+            document.fonts.load(`${weight} 16px ${fontFamily}`)
+        )
+    );
+    await document.fonts.ready;
+};
+
+const resetCanvasEffects = (ctx: CanvasRenderingContext2D) => {
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+};
+
+const roundedRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+) => {
+    const nextRadius = Math.min(radius, width / 2, height / 2);
+
+    ctx.beginPath();
+    ctx.moveTo(x + nextRadius, y);
+    ctx.lineTo(x + width - nextRadius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + nextRadius);
+    ctx.lineTo(x + width, y + height - nextRadius);
+    ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - nextRadius,
+        y + height
+    );
+    ctx.lineTo(x + nextRadius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - nextRadius);
+    ctx.lineTo(x, y + nextRadius);
+    ctx.quadraticCurveTo(x, y, x + nextRadius, y);
+    ctx.closePath();
+};
+
+const drawImageCover = (
+    ctx: CanvasRenderingContext2D,
+    image: HTMLImageElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    positionX = 0.5,
+    positionY = 0.5
+) => {
+    const scale = Math.max(
+        width / image.naturalWidth,
+        height / image.naturalHeight
+    );
+    const sourceWidth = width / scale;
+    const sourceHeight = height / scale;
+    const sourceX = (image.naturalWidth - sourceWidth) * positionX;
+    const sourceY = (image.naturalHeight - sourceHeight) * positionY;
+
+    ctx.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        x,
+        y,
+        width,
+        height
+    );
+};
+
+const setCanvasFont = (
+    ctx: CanvasRenderingContext2D,
+    fontWeight: number,
+    fontSizeMm: number,
+    fontFamily: string
+) => {
+    ctx.font = `${fontWeight} ${fontSizeMm}px ${fontFamily}`;
+};
+
+const measureCanvasText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    letterSpacingMm = 0
+) => {
+    const characters = Array.from(text);
+
+    return (
+        ctx.measureText(text).width +
+        Math.max(0, characters.length - 1) * letterSpacingMm
+    );
+};
+
+const drawTextRun = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    letterSpacingMm: number,
+    draw: (part: string, x: number) => void
+) => {
+    if (letterSpacingMm === 0) {
+        draw(text, x);
+        return;
+    }
+
+    let cursor = x;
+
+    for (const character of Array.from(text)) {
+        draw(character, cursor);
+        cursor += ctx.measureText(character).width + letterSpacingMm;
+    }
+};
+
+const getGlyphCenteredBaselineY = (metrics: TextMetrics, centerY: number) => {
+    const { actualBoundingBoxAscent, actualBoundingBoxDescent } = metrics;
+
+    if (
+        !Number.isFinite(actualBoundingBoxAscent) ||
+        !Number.isFinite(actualBoundingBoxDescent) ||
+        (actualBoundingBoxAscent === 0 && actualBoundingBoxDescent === 0)
+    ) {
+        return null;
+    }
+
+    return centerY + (actualBoundingBoxAscent - actualBoundingBoxDescent) / 2;
+};
+
+const drawCanvasText = (
+    ctx: CanvasRenderingContext2D,
+    options: CanvasTextOptions
+) => {
+    const {
+        align = 'center',
+        fill,
+        fontFamily,
+        fontWeight,
+        letterSpacingMm = 0,
+        maxWidthMm,
+        shadow,
+        strokeColor,
+        strokeWidthMm = 0,
+        text,
+        x,
+        y,
+    } = options;
+    let fontSizeMm = options.fontSizeMm;
+
+    setCanvasFont(ctx, fontWeight, fontSizeMm, fontFamily);
+
+    if (maxWidthMm) {
+        while (
+            measureCanvasText(ctx, text, letterSpacingMm) > maxWidthMm &&
+            fontSizeMm > 1.8
+        ) {
+            fontSizeMm = Math.max(1.8, fontSizeMm - 0.05);
+            setCanvasFont(ctx, fontWeight, fontSizeMm, fontFamily);
+        }
+    }
+
+    const measuredWidth = measureCanvasText(ctx, text, letterSpacingMm);
+    const startX =
+        align === 'left'
+            ? x
+            : align === 'right'
+              ? x - measuredWidth
+              : x - measuredWidth / 2;
+
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.fillStyle = fill;
+    ctx.lineJoin = 'round';
+
+    const baselineY = getGlyphCenteredBaselineY(ctx.measureText(text), y);
+    const drawY = baselineY ?? y;
+
+    ctx.textBaseline = baselineY === null ? 'middle' : 'alphabetic';
+
+    if (shadow) {
+        ctx.shadowBlur = shadow.blur;
+        ctx.shadowColor = shadow.color;
+        ctx.shadowOffsetX = shadow.offsetX;
+        ctx.shadowOffsetY = shadow.offsetY;
+    }
+
+    if (strokeColor && strokeWidthMm > 0) {
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = strokeWidthMm;
+        drawTextRun(ctx, text, startX, letterSpacingMm, (part, partX) => {
+            ctx.strokeText(part, partX, drawY);
+        });
+    }
+
+    drawTextRun(ctx, text, startX, letterSpacingMm, (part, partX) => {
+        ctx.fillText(part, partX, drawY);
+    });
+    ctx.restore();
+};
+
+const getTextStyle = (textStyleId: TextStyleId) => {
+    switch (textStyleId) {
+        case 'sport':
+            return {
+                bibWeight: 800,
+                labelColor: '#51363a',
+                nameWeight: 900,
+                timeColor: '#3f3236',
+                timeWeight: 900,
+            };
+        case 'round':
+            return {
+                bibWeight: 700,
+                labelColor: '#5b4a52',
+                nameWeight: 700,
+                timeColor: '#554249',
+                timeWeight: 700,
+            };
+        case 'arcade':
+            return {
+                bibWeight: 900,
+                labelColor: '#322b3a',
+                nameWeight: 900,
+                timeColor: '#302a3a',
+                timeWeight: 900,
+            };
+        case 'balanced':
+            return {
+                bibWeight: 700,
+                labelColor: '#4d3a3e',
+                nameWeight: 800,
+                timeColor: '#45373a',
+                timeWeight: 800,
+            };
+    }
+};
+
+const getAlignedX = (
+    alignment: HeaderAlignmentId,
+    left: number,
+    width: number,
+    contentWidth: number
+) => {
+    if (alignment === 'center') {
+        return left + (width - contentWidth) / 2;
+    }
+
+    if (alignment === 'right') {
+        return left + width - contentWidth;
+    }
+
+    return left;
+};
+
+const drawHeader = (
+    ctx: CanvasRenderingContext2D,
+    record: RecordInput,
+    assets: RecordCardAssets,
+    fontFamily: string
+) => {
+    const horizontalPadding = 5.7;
+    const logoWidth = 36;
+    const logoHeight =
+        logoWidth * (assets.logo.naturalHeight / assets.logo.naturalWidth);
+    const logoX = getAlignedX(
+        record.logoAlignmentId,
+        horizontalPadding,
+        54 - horizontalPadding * 2,
+        logoWidth
+    );
+    const logoY = 7;
+
+    ctx.drawImage(assets.logo, logoX, logoY, logoWidth, logoHeight);
+
+    const titleAlign = record.titleAlignmentId;
+    const titleX =
+        titleAlign === 'center'
+            ? 27
+            : titleAlign === 'right'
+              ? 54 - horizontalPadding
+              : horizontalPadding;
+
+    drawCanvasText(ctx, {
+        align: titleAlign,
+        fill: '#3c3838',
+        fontFamily,
+        fontSizeMm: 6.1,
+        fontWeight: 900,
+        letterSpacingMm: 0.06,
+        shadow: {
+            blur: 0.72,
+            color: 'rgb(92 58 48 / 0.23)',
+            offsetX: 0,
+            offsetY: 0.55,
+        },
+        strokeColor: 'rgb(255 255 255 / 0.9)',
+        strokeWidthMm: 0.68,
+        text: '완주 기록증',
+        x: titleX,
+        y: logoY + logoHeight + 5.5,
+    });
+};
+
+const drawTrack = (ctx: CanvasRenderingContext2D) => {
+    const trackGradient = ctx.createLinearGradient(0, 74.7, 0, 83.3);
+    trackGradient.addColorStop(0, 'rgb(129 186 207 / 0.66)');
+    trackGradient.addColorStop(1, 'rgb(82 150 181 / 0.48)');
+
+    roundedRect(ctx, 2.8, 74.7, 48.4, 8.6, 4.3);
+    ctx.fillStyle = trackGradient;
+    ctx.globalAlpha = 0.68;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = 'rgb(255 219 108 / 0.58)';
+    ctx.lineWidth = 0.22;
+    [10.8, 23.3, 36.7].forEach((x) => {
+        ctx.beginPath();
+        ctx.moveTo(x, 75.2);
+        ctx.lineTo(x + 5.6, 82.8);
+        ctx.stroke();
+    });
+};
+
+const drawPanel = (
+    ctx: CanvasRenderingContext2D,
+    record: RecordInput,
+    fontFamily: string
+) => {
+    const textStyle = getTextStyle(record.textStyleId);
+    const panel = { x: 5.2, y: 31.4, width: 43.6, height: 42.4 };
+    const labelHeight = 4.6;
+    const bibHeight = 6.6;
+    const nameHeight = 12.7;
+    const courseHeight = 5;
+    const timeHeight = 13.5;
+
+    ctx.save();
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = 'rgb(37 89 116 / 0.18)';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 1.7;
+    roundedRect(ctx, panel.x, panel.y, panel.width, panel.height, 2.2);
+    ctx.fillStyle = 'rgb(255 255 255 / 0.92)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    roundedRect(ctx, panel.x, panel.y, panel.width, panel.height, 2.2);
+    ctx.clip();
+
+    const yellowGradient = ctx.createLinearGradient(
+        0,
+        panel.y,
+        0,
+        panel.y + labelHeight
+    );
+    yellowGradient.addColorStop(0, '#fff08d');
+    yellowGradient.addColorStop(1, '#ffd85a');
+
+    ctx.fillStyle = yellowGradient;
+    ctx.fillRect(panel.x, panel.y, panel.width, labelHeight);
+
+    const bibY = panel.y + labelHeight;
+    const nameY = bibY + bibHeight;
+    const courseY = nameY + nameHeight;
+    const timeY = courseY + courseHeight;
+
+    ctx.fillStyle = 'rgb(255 255 255 / 0.92)';
+    ctx.fillRect(panel.x, bibY, panel.width, bibHeight);
+    ctx.fillRect(panel.x, nameY, panel.width, nameHeight);
+
+    const courseGradient = ctx.createLinearGradient(
+        0,
+        courseY,
+        0,
+        courseY + courseHeight
+    );
+    courseGradient.addColorStop(0, '#fff08d');
+    courseGradient.addColorStop(1, '#ffd85a');
+    ctx.fillStyle = courseGradient;
+    ctx.fillRect(panel.x, courseY, panel.width, courseHeight);
+
+    ctx.fillStyle = 'rgb(255 255 255 / 0.92)';
+    ctx.fillRect(panel.x, timeY, panel.width, timeHeight);
+
+    ctx.strokeStyle = 'rgb(255 218 95 / 0.72)';
+    ctx.lineWidth = 0.25;
+    [nameY, courseY, timeY].forEach((y) => {
+        ctx.beginPath();
+        ctx.moveTo(panel.x, y);
+        ctx.lineTo(panel.x + panel.width, y);
+        ctx.stroke();
+    });
+
+    const centerX = panel.x + panel.width / 2;
+
+    drawCanvasText(ctx, {
+        fill: textStyle.labelColor,
+        fontFamily,
+        fontSizeMm: 2.45,
+        fontWeight: 700,
+        letterSpacingMm: 0.2,
+        shadow: {
+            blur: 0.18,
+            color: 'rgb(255 255 255 / 0.56)',
+            offsetX: 0,
+            offsetY: 0.11,
+        },
+        text: '번호',
+        x: centerX,
+        y:
+            panel.y +
+            labelHeight / 2 +
+            getTextVerticalOffset(record.fontFamilyId, 'label'),
+    });
+
+    drawCanvasText(ctx, {
+        fill: '#4a373a',
+        fontFamily,
+        fontSizeMm: 4.35,
+        fontWeight: textStyle.bibWeight,
+        letterSpacingMm: 0.36,
+        maxWidthMm: panel.width - 3,
+        shadow: {
+            blur: 0.2,
+            color: 'rgb(255 255 255 / 0.5)',
+            offsetX: 0,
+            offsetY: 0.14,
+        },
+        strokeColor: 'rgb(255 255 255 / 0.38)',
+        strokeWidthMm: 0.11,
+        text: `${record.bibGroup}${record.bibNumber || '0000'}`,
+        x: centerX,
+        y:
+            bibY +
+            bibHeight / 2 +
+            getTextVerticalOffset(record.fontFamilyId, 'bib'),
+    });
+
+    drawCanvasText(ctx, {
+        fill: record.textStyleId === 'round' ? '#59464d' : '#4b3a3d',
+        fontFamily,
+        fontSizeMm: 5.6,
+        fontWeight: textStyle.nameWeight,
+        letterSpacingMm: record.textStyleId === 'arcade' ? 0.16 : 0.06,
+        maxWidthMm: panel.width - 3,
+        shadow: {
+            blur: 0.24,
+            color: 'rgb(255 255 255 / 0.38)',
+            offsetX: 0,
+            offsetY: 0.12,
+        },
+        strokeColor:
+            record.textStyleId === 'arcade'
+                ? 'rgb(255 241 174 / 0.72)'
+                : 'rgb(255 255 255 / 0.42)',
+        strokeWidthMm: record.textStyleId === 'arcade' ? 0.2 : 0.15,
+        text: record.runnerName || '이름',
+        x: centerX,
+        y:
+            nameY +
+            nameHeight / 2 +
+            getTextVerticalOffset(record.fontFamilyId, 'name'),
+    });
+
+    drawCanvasText(ctx, {
+        fill: textStyle.labelColor,
+        fontFamily,
+        fontSizeMm: 3.15,
+        fontWeight: record.textStyleId === 'sport' ? 800 : 700,
+        letterSpacingMm: 0.12,
+        shadow: {
+            blur: 0.18,
+            color: 'rgb(255 255 255 / 0.56)',
+            offsetX: 0,
+            offsetY: 0.11,
+        },
+        text: '5km',
+        x: centerX,
+        y:
+            courseY +
+            courseHeight / 2 +
+            getTextVerticalOffset(record.fontFamilyId, 'course'),
+    });
+
+    drawCanvasText(ctx, {
+        fill: textStyle.timeColor,
+        fontFamily,
+        fontSizeMm: 8.9,
+        fontWeight: textStyle.timeWeight,
+        letterSpacingMm: record.textStyleId === 'round' ? -0.02 : -0.08,
+        maxWidthMm: panel.width - 2,
+        shadow: {
+            blur: 0.24,
+            color: 'rgb(255 255 255 / 0.5)',
+            offsetX: 0,
+            offsetY: 0.16,
+        },
+        strokeColor:
+            record.textStyleId === 'arcade'
+                ? 'rgb(255 241 174 / 0.72)'
+                : 'rgb(255 255 255 / 0.5)',
+        strokeWidthMm: record.textStyleId === 'arcade' ? 0.2 : 0.18,
+        text: record.finishTime || '00:00',
+        x: centerX,
+        y:
+            timeY +
+            timeHeight / 2 +
+            getTextVerticalOffset(record.fontFamilyId, 'time'),
+    });
+
+    resetCanvasEffects(ctx);
+    ctx.restore();
+
+    roundedRect(ctx, panel.x, panel.y, panel.width, panel.height, 2.2);
+    ctx.strokeStyle = 'rgb(255 218 95 / 0.95)';
+    ctx.lineWidth = 0.35;
+    ctx.stroke();
+};
+
+const drawRunner = (
+    ctx: CanvasRenderingContext2D,
+    image: HTMLImageElement,
+    x: number,
+    y: number,
+    height: number,
+    flipped = false
+) => {
+    const width = height * (image.naturalWidth / image.naturalHeight);
+
+    ctx.save();
+    ctx.shadowBlur = 0.5;
+    ctx.shadowColor = 'rgb(60 45 48 / 0.2)';
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0.6;
+
+    if (flipped) {
+        ctx.translate(x + width / 2, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(image, -width / 2, y, width, height);
+    } else {
+        ctx.drawImage(image, x, y, width, height);
+    }
+
+    ctx.restore();
+};
+
+const drawRecordCard = (
+    ctx: CanvasRenderingContext2D,
+    record: RecordInput,
+    options: DrawRecordCardOptions
+) => {
+    const {
+        assets,
+        heightMm,
+        offsetX,
+        offsetY,
+        outputScale,
+        pixelRatio,
+        widthMm,
+    } = options;
+    const fontFamily = fontOptionById[record.fontFamilyId].fontFamily;
+    const outputWidth = mmToCssPx(widthMm) * pixelRatio;
+    const outputHeight = mmToCssPx(heightMm) * pixelRatio;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, outputWidth, outputHeight);
+    resetCanvasEffects(ctx);
+
+    ctx.setTransform(
+        CANVAS_PX_PER_MM * pixelRatio,
+        0,
+        0,
+        CANVAS_PX_PER_MM * pixelRatio,
+        0,
+        0
+    );
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(outputScale, outputScale);
+
+    ctx.save();
+    roundedRect(ctx, 0, 0, baseCardSizeMm.width, baseCardSizeMm.height, 3);
+    ctx.clip();
+    ctx.fillStyle = '#bae6fd';
+    ctx.fillRect(0, 0, baseCardSizeMm.width, baseCardSizeMm.height);
+    drawImageCover(
+        ctx,
+        assets.bg,
+        0,
+        0,
+        baseCardSizeMm.width,
+        baseCardSizeMm.height,
+        0.49,
+        0
+    );
+
+    const glowGradient = ctx.createLinearGradient(
+        0,
+        0,
+        0,
+        baseCardSizeMm.height
+    );
+    glowGradient.addColorStop(0, 'rgb(99 207 255 / 0.3)');
+    glowGradient.addColorStop(0.42, 'rgb(255 255 255 / 0.08)');
+    glowGradient.addColorStop(1, 'rgb(255 236 159 / 0.2)');
+    ctx.fillStyle = glowGradient;
+    ctx.fillRect(0, 0, baseCardSizeMm.width, baseCardSizeMm.height);
+
+    const topGlow = ctx.createRadialGradient(27, 9.4, 0, 27, 9.4, 8.8);
+    topGlow.addColorStop(0, 'rgb(255 255 255 / 0.8)');
+    topGlow.addColorStop(1, 'rgb(255 255 255 / 0)');
+    ctx.fillStyle = topGlow;
+    ctx.fillRect(0, 0, baseCardSizeMm.width, baseCardSizeMm.height);
+
+    const sideGlow = ctx.createRadialGradient(42.1, 30, 0, 42.1, 30, 13);
+    sideGlow.addColorStop(0, 'rgb(255 255 255 / 0.45)');
+    sideGlow.addColorStop(1, 'rgb(255 255 255 / 0)');
+    ctx.fillStyle = sideGlow;
+    ctx.fillRect(0, 0, baseCardSizeMm.width, baseCardSizeMm.height);
+
+    drawHeader(ctx, record, assets, fontFamily);
+    drawTrack(ctx);
+    drawPanel(ctx, record, fontFamily);
+
+    ctx.restore();
+
+    const runnerHeight = 18.5;
+    const runnerY = baseCardSizeMm.height - 3 - runnerHeight;
+    const leftRunner = assets.runners[record.leftRunnerId];
+    const rightRunner = assets.runners[record.rightRunnerId];
+    const rightRunnerWidth =
+        runnerHeight * (rightRunner.naturalWidth / rightRunner.naturalHeight);
+
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    resetCanvasEffects(ctx);
+    drawRunner(
+        ctx,
+        leftRunner,
+        record.leftRunnerPosition,
+        runnerY,
+        runnerHeight
+    );
+    drawRunner(
+        ctx,
+        rightRunner,
+        baseCardSizeMm.width - record.rightRunnerPosition - rightRunnerWidth,
+        runnerY,
+        runnerHeight,
+        true
+    );
+
+    roundedRect(
+        ctx,
+        1.38,
+        1.38,
+        baseCardSizeMm.width - 2.76,
+        baseCardSizeMm.height - 2.76,
+        2.35
+    );
+    ctx.strokeStyle = 'rgb(255 255 255 / 0.9)';
+    ctx.lineWidth = 0.18;
+    ctx.stroke();
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 };
 
 const FieldError = ({ children }: { children: string }) => (
@@ -641,245 +1301,194 @@ const RunnerPositionSlider = ({
     </div>
 );
 
-const AlignedText = ({
-    children,
-    className,
-    fontFamilyId,
-    slot,
-}: {
-    children: ReactNode;
-    className?: string;
-    fontFamilyId: FontFamilyId;
-    slot: TextSlotId;
-}) => (
-    <span
-        className="inline-block [transform:translateY(var(--text-y-offset))]"
-        style={
-            {
-                '--text-y-offset': getTextVerticalOffset(fontFamilyId, slot),
-            } as TextOffsetStyle
-        }
-    >
-        <span className={className}>{children}</span>
-    </span>
-);
+const setCanvasSize = (
+    canvas: HTMLCanvasElement,
+    widthMm: number,
+    heightMm: number,
+    pixelRatio: number
+) => {
+    const width = Math.round(mmToCssPx(widthMm) * pixelRatio);
+    const height = Math.round(mmToCssPx(heightMm) * pixelRatio);
 
-const NAME_BASE_FONT_SIZE_MM = 5.6;
-const NAME_MIN_FONT_SIZE_MM = 1.8;
-const NAME_FONT_SIZE_STEP_MM = 0.05;
-const NAME_FIT_PADDING_PX = 1;
+    if (canvas.width !== width) {
+        canvas.width = width;
+    }
 
-const AutoFitName = ({
-    text,
-    fontFamilyId,
-    textStyleId,
-}: {
-    text: string;
-    fontFamilyId: FontFamilyId;
-    textStyleId: TextStyleId;
-}) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const textRef = useRef<HTMLSpanElement>(null);
-    const [fontSizeMm, setFontSizeMm] = useState(NAME_BASE_FONT_SIZE_MM);
+    if (canvas.height !== height) {
+        canvas.height = height;
+    }
+};
 
-    useLayoutEffect(() => {
-        const fitText = () => {
-            const container = containerRef.current;
-            const textElement = textRef.current;
+const renderRecordCardToCanvas = async (
+    canvas: HTMLCanvasElement,
+    record: RecordInput,
+    options: Omit<DrawRecordCardOptions, 'assets'>
+) => {
+    const [assets] = await Promise.all([
+        loadRecordCardAssets(),
+        waitForFontFamily(fontOptionById[record.fontFamilyId].fontFamily),
+    ]);
+    const context = canvas.getContext('2d');
 
-            if (!container || !textElement) {
-                return;
-            }
+    if (!context) {
+        throw new Error('Canvas 2D context is not available.');
+    }
 
-            const maxWidth =
-                container.getBoundingClientRect().width - NAME_FIT_PADDING_PX;
+    setCanvasSize(
+        canvas,
+        options.widthMm,
+        options.heightMm,
+        options.pixelRatio
+    );
+    drawRecordCard(context, record, { ...options, assets });
+};
 
-            if (maxWidth <= 0) {
-                return;
-            }
+const canvasToPngBlob = (canvas: HTMLCanvasElement) =>
+    new Promise<Blob>((resolve, reject) => {
+        if (canvas.toBlob) {
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    resolve(blob);
+                    return;
+                }
 
-            let nextSize = NAME_BASE_FONT_SIZE_MM;
-            textElement.style.fontSize = `${nextSize}mm`;
-
-            const textWidth = textElement.getBoundingClientRect().width;
-
-            if (textWidth > maxWidth) {
-                nextSize = Math.max(
-                    NAME_MIN_FONT_SIZE_MM,
-                    (NAME_BASE_FONT_SIZE_MM * maxWidth) / textWidth
-                );
-                textElement.style.fontSize = `${nextSize}mm`;
-            }
-
-            while (
-                textElement.getBoundingClientRect().width > maxWidth &&
-                nextSize > NAME_MIN_FONT_SIZE_MM
-            ) {
-                nextSize = Math.max(
-                    NAME_MIN_FONT_SIZE_MM,
-                    nextSize - NAME_FONT_SIZE_STEP_MM
-                );
-                textElement.style.fontSize = `${nextSize}mm`;
-            }
-
-            setFontSizeMm(nextSize);
-        };
-
-        fitText();
-
-        const container = containerRef.current;
-
-        if (!container) {
+                reject(new Error('Failed to create PNG blob.'));
+            }, 'image/png');
             return;
         }
 
-        const resizeObserver = new ResizeObserver(() => {
-            fitText();
-        });
-        resizeObserver.observe(container);
+        try {
+            const [metadata, content] = canvas
+                .toDataURL('image/png')
+                .split(',');
+            const mime =
+                metadata?.match(/data:(.*);base64/)?.[1] ?? 'image/png';
+            const binary = window.atob(content ?? '');
+            const bytes = new Uint8Array(binary.length);
 
-        void document.fonts.ready.then(fitText);
+            for (let index = 0; index < binary.length; index += 1) {
+                bytes[index] = binary.charCodeAt(index);
+            }
 
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, [text, fontFamilyId, textStyleId]);
+            resolve(new Blob([bytes], { type: mime }));
+        } catch (error) {
+            reject(error);
+        }
+    });
 
-    return (
-        <div
-            ref={containerRef}
-            className="w-full min-w-0 overflow-hidden text-center"
-        >
-            <AlignedText fontFamilyId={fontFamilyId} slot="name">
-                <span
-                    ref={textRef}
-                    className="inline-block whitespace-nowrap"
-                    style={{ fontSize: `${fontSizeMm}mm` }}
-                >
-                    <span className="typo-badge typo-badge-name">{text}</span>
-                </span>
-            </AlignedText>
-        </div>
-    );
+const isIosLikeBrowser = () =>
+    /iP(ad|hone|od)/.test(window.navigator.userAgent) ||
+    (window.navigator.platform === 'MacIntel' &&
+        window.navigator.maxTouchPoints > 1);
+
+const savePngBlob = (
+    blob: Blob,
+    fileName: string,
+    fallbackWindow: Window | null
+) => {
+    const url = URL.createObjectURL(blob);
+
+    if (fallbackWindow) {
+        fallbackWindow.location.href = url;
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+    }
+
+    const link = document.createElement('a');
+    link.download = fileName;
+    link.href = url;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 };
 
-const RecordCard = ({ record }: { record: RecordInput }) => {
-    const leftRunner = runnerCharacterById[record.leftRunnerId];
-    const rightRunner = runnerCharacterById[record.rightRunnerId];
-    const fontOption = fontOptionById[record.fontFamilyId];
-    const textStyle = textStyleClassMap[record.textStyleId];
-    const logoAlignment = headerAlignmentClassMap[record.logoAlignmentId];
-    const titleAlignment = headerAlignmentClassMap[record.titleAlignmentId];
+const RecordCardCanvas = ({
+    heightMm,
+    offsetX,
+    offsetY,
+    outputScale,
+    record,
+    widthMm,
+}: {
+    heightMm: number;
+    offsetX: number;
+    offsetY: number;
+    outputScale: number;
+    record: RecordInput;
+    widthMm: number;
+}) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        let isCanceled = false;
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+            return;
+        }
+
+        const pixelRatio = Math.min(
+            window.devicePixelRatio || 1,
+            PREVIEW_PIXEL_RATIO_CAP
+        );
+
+        void (async () => {
+            const [assets] = await Promise.all([
+                loadRecordCardAssets(),
+                waitForFontFamily(
+                    fontOptionById[record.fontFamilyId].fontFamily
+                ),
+            ]);
+
+            if (isCanceled) {
+                return;
+            }
+
+            const context = canvas.getContext('2d');
+
+            if (!context) {
+                return;
+            }
+
+            setCanvasSize(canvas, widthMm, heightMm, pixelRatio);
+            drawRecordCard(context, record, {
+                assets,
+                heightMm,
+                offsetX,
+                offsetY,
+                outputScale,
+                pixelRatio,
+                widthMm,
+            });
+        })();
+
+        return () => {
+            isCanceled = true;
+        };
+    }, [
+        heightMm,
+        offsetX,
+        offsetY,
+        outputScale,
+        record,
+        widthMm,
+        textVerticalOffsetSignature,
+    ]);
 
     return (
-        <div
-            className={recordCardStyles.card}
-            style={{ fontFamily: fontOption.fontFamily }}
+        <canvas
+            ref={canvasRef}
+            className={recordCardStyles.canvas}
             role="img"
             aria-label="완주 기록증"
-        >
-            <img
-                className={recordCardStyles.bg}
-                src={bgImage}
-                alt=""
-                aria-hidden="true"
-            />
-            <div className={recordCardStyles.glow} aria-hidden="true" />
-            <div className={recordCardStyles.border} aria-hidden="true" />
-
-            <header className={recordCardStyles.header}>
-                <img
-                    className={cn(recordCardStyles.logo, logoAlignment.item)}
-                    src={logoImage}
-                    alt="Kivotos Run"
-                />
-                <h2
-                    className={cn(
-                        recordCardStyles.title,
-                        titleAlignment.item,
-                        titleAlignment.title
-                    )}
-                >
-                    완주 기록증
-                </h2>
-            </header>
-
-            <section className={cn(recordCardStyles.panel, textStyle.panel)}>
-                <div className={cn(recordCardStyles.label, textStyle.label)}>
-                    <AlignedText
-                        fontFamilyId={record.fontFamilyId}
-                        slot="label"
-                    >
-                        번호
-                    </AlignedText>
-                </div>
-                <div className={cn(recordCardStyles.bib, textStyle.bib)}>
-                    <div className="flex items-center justify-center gap-[1.2mm]">
-                        <AlignedText
-                            className="typo-badge typo-badge-subtle"
-                            fontFamilyId={record.fontFamilyId}
-                            slot="bib"
-                        >
-                            {record.bibGroup}
-                            {record.bibNumber || '0000'}
-                        </AlignedText>
-                    </div>
-                </div>
-                <div className={cn(recordCardStyles.name, textStyle.name)}>
-                    <AutoFitName
-                        text={record.runnerName || '이름'}
-                        fontFamilyId={record.fontFamilyId}
-                        textStyleId={record.textStyleId}
-                    />
-                </div>
-                <div className={cn(recordCardStyles.course, textStyle.course)}>
-                    <AlignedText
-                        fontFamilyId={record.fontFamilyId}
-                        slot="course"
-                    >
-                        5km
-                    </AlignedText>
-                </div>
-                <div className={cn(recordCardStyles.time, textStyle.time)}>
-                    <AlignedText
-                        className="typo-badge typo-badge-time"
-                        fontFamilyId={record.fontFamilyId}
-                        slot="time"
-                    >
-                        {record.finishTime || '00:00'}
-                    </AlignedText>
-                </div>
-            </section>
-
-            <img
-                className={cn(
-                    recordCardStyles.runner,
-                    recordCardStyles.runnerLeft
-                )}
-                src={leftRunner.image}
-                style={{ left: `${record.leftRunnerPosition}mm` }}
-                alt=""
-                aria-hidden="true"
-            />
-            <img
-                className={cn(
-                    recordCardStyles.runner,
-                    recordCardStyles.runnerRight
-                )}
-                src={rightRunner.image}
-                style={{ right: `${record.rightRunnerPosition}mm` }}
-                alt=""
-                aria-hidden="true"
-            />
-            <div className={recordCardStyles.track} aria-hidden="true" />
-        </div>
+        />
     );
 };
 
 const App = () => {
     const [record, setRecord] = useState<RecordInput>(initialRecord);
     const [isSaving, setIsSaving] = useState(false);
-    const cardFrameRef = useRef<HTMLDivElement>(null);
     const selectedCardSize = outputCardSizeById[record.outputSizeId];
     const outputCardScale = Math.min(
         selectedCardSize.widthMm / baseCardSizeMm.width,
@@ -911,51 +1520,36 @@ const App = () => {
     };
 
     const handleDownload = async () => {
-        const cardFrame = cardFrameRef.current;
-
-        if (!cardFrame || hasError) {
+        if (hasError) {
             return;
         }
 
         setIsSaving(true);
-
-        const previousPreviewScale = cardFrame.style.getPropertyValue(
-            '--card-preview-scale'
-        );
-        const previousFilter = cardFrame.style.filter;
+        const fallbackWindow = isIosLikeBrowser()
+            ? window.open('', '_blank')
+            : null;
 
         try {
-            await document.fonts.ready;
+            const exportCanvas = document.createElement('canvas');
 
-            cardFrame.dataset.cardExporting = 'true';
-            cardFrame.style.setProperty('--card-preview-scale', '1');
-            cardFrame.style.filter = 'none';
-            void cardFrame.offsetWidth;
-
-            const dataUrl = await toPng(cardFrame, {
-                backgroundColor: '#ffffff',
-                cacheBust: true,
-                height: mmToCssPx(selectedCardSize.heightMm),
-                pixelRatio: 3.125,
-                width: mmToCssPx(selectedCardSize.widthMm),
+            await renderRecordCardToCanvas(exportCanvas, record, {
+                heightMm: selectedCardSize.heightMm,
+                offsetX: outputOffsetX,
+                offsetY: outputOffsetY,
+                outputScale: outputCardScale,
+                pixelRatio: EXPORT_PIXEL_RATIO,
+                widthMm: selectedCardSize.widthMm,
             });
 
-            const link = document.createElement('a');
-            link.download = `kivotos-run-${record.bibNumber}-${sanitizeFileName(record.runnerName)}-${selectedCardSize.widthMm}x${selectedCardSize.heightMm}mm.png`;
-            link.href = dataUrl;
-            link.click();
-        } finally {
-            if (previousPreviewScale) {
-                cardFrame.style.setProperty(
-                    '--card-preview-scale',
-                    previousPreviewScale
-                );
-            } else {
-                cardFrame.style.removeProperty('--card-preview-scale');
-            }
+            const blob = await canvasToPngBlob(exportCanvas);
+            const fileName = `kivotos-run-${record.bibNumber}-${sanitizeFileName(record.runnerName)}-${selectedCardSize.widthMm}x${selectedCardSize.heightMm}mm.png`;
 
-            cardFrame.style.filter = previousFilter;
-            delete cardFrame.dataset.cardExporting;
+            savePngBlob(blob, fileName, fallbackWindow);
+        } catch (error) {
+            fallbackWindow?.close();
+            console.error(error);
+            window.alert('이미지 저장에 실패했어요. 다시 시도해 주세요.');
+        } finally {
             setIsSaving(false);
         }
     };
@@ -1169,8 +1763,15 @@ const App = () => {
                     className="grid min-w-0 justify-items-center max-[900px]:order-1 print:block"
                     aria-label="기록증 미리보기"
                 >
-                    <div ref={cardFrameRef} className={recordCardStyles.frame}>
-                        <RecordCard record={record} />
+                    <div className={recordCardStyles.frame}>
+                        <RecordCardCanvas
+                            record={record}
+                            widthMm={selectedCardSize.widthMm}
+                            heightMm={selectedCardSize.heightMm}
+                            outputScale={outputCardScale}
+                            offsetX={outputOffsetX}
+                            offsetY={outputOffsetY}
+                        />
                     </div>
                 </section>
             </div>
