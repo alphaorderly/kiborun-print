@@ -198,6 +198,8 @@ type RecordInput = {
     rightRunnerId: RunnerCharacterId;
     leftRunnerPosition: number;
     rightRunnerPosition: number;
+    leftRunnerFlipped: boolean;
+    rightRunnerFlipped: boolean;
 };
 
 const initialRecord: RecordInput = {
@@ -214,6 +216,8 @@ const initialRecord: RecordInput = {
     rightRunnerId: 'char-6',
     leftRunnerPosition: -6,
     rightRunnerPosition: -6,
+    leftRunnerFlipped: false,
+    rightRunnerFlipped: true,
 };
 
 const isValidFinishTime = (value: string) =>
@@ -1020,7 +1024,8 @@ const drawRecordCard = (
         leftRunner,
         record.leftRunnerPosition,
         runnerY,
-        runnerHeight
+        runnerHeight,
+        record.leftRunnerFlipped
     );
     drawRunner(
         ctx,
@@ -1028,7 +1033,7 @@ const drawRecordCard = (
         baseCardSizeMm.width - record.rightRunnerPosition - rightRunnerWidth,
         runnerY,
         runnerHeight,
-        true
+        record.rightRunnerFlipped
     );
 
     roundedRect(
@@ -1266,6 +1271,52 @@ const CharacterPicker = ({
                         <span className="text-[11px] leading-none">
                             {character.label}
                         </span>
+                    </Button>
+                );
+            })}
+        </div>
+    </div>
+);
+
+const RunnerFlipPicker = ({
+    label,
+    flipped,
+    onChange,
+}: {
+    label: string;
+    flipped: boolean;
+    onChange: (flipped: boolean) => void;
+}) => (
+    <div className="grid gap-2">
+        <Label>{label}</Label>
+        <div
+            className="grid grid-cols-2 gap-2"
+            role="radiogroup"
+            aria-label={label}
+        >
+            {(
+                [
+                    { id: false, label: '기본' },
+                    { id: true, label: '반전' },
+                ] as const
+            ).map((option) => {
+                const isSelected = option.id === flipped;
+
+                return (
+                    <Button
+                        key={option.label}
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                            'h-auto justify-center px-3 py-2 font-bold',
+                            isSelected &&
+                                'border-primary bg-primary/10 text-primary shadow-sm'
+                        )}
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => onChange(option.id)}
+                    >
+                        {option.label}
                     </Button>
                 );
             })}
@@ -1721,6 +1772,22 @@ const App = () => {
                         </div>
 
                         <div className="grid gap-4">
+                            <div className="grid grid-cols-2 gap-3 max-[520px]:grid-cols-1">
+                                <RunnerFlipPicker
+                                    label="왼쪽 방향"
+                                    flipped={record.leftRunnerFlipped}
+                                    onChange={(value) =>
+                                        updateRecord('leftRunnerFlipped', value)
+                                    }
+                                />
+                                <RunnerFlipPicker
+                                    label="오른쪽 방향"
+                                    flipped={record.rightRunnerFlipped}
+                                    onChange={(value) =>
+                                        updateRecord('rightRunnerFlipped', value)
+                                    }
+                                />
+                            </div>
                             <RunnerPositionSlider
                                 label="왼쪽 위치"
                                 value={record.leftRunnerPosition}
